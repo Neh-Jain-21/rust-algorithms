@@ -1,13 +1,13 @@
 pub struct Comparator<T>
 where
-    T: std::cmp::PartialEq + std::cmp::PartialOrd + 'static,
+    T: PartialEq + PartialOrd + 'static,
 {
     compare: Box<dyn Fn(&T, &T) -> i32>,
 }
 
 impl<T> Comparator<T>
 where
-    T: std::cmp::PartialEq + std::cmp::PartialOrd + 'static,
+    T: PartialEq + PartialOrd + 'static,
 {
     /// Creates a new instance of Comparator.
     pub fn new(compare_function: Option<Box<dyn Fn(&T, &T) -> i32>>) -> Self {
