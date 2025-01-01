@@ -1,6 +1,6 @@
 pub type Link<T> = Option<Box<LinkedListNode<T>>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LinkedListNode<T>
 where
     T: Clone,

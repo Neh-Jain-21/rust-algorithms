@@ -27,7 +27,7 @@ where
         }
     }
 
-    pub fn prepend(&mut self, value: T) {
+    pub fn prepend(&mut self, value: T) -> &mut Self {
         let new_node: Box<LinkedListNode<T>> = LinkedListNode::new(value, self.head.take());
 
         self.head = Some(new_node.clone());
@@ -35,16 +35,24 @@ where
         if self.tail.is_none() {
             self.tail = Some(new_node);
         }
+
+        return self;
     }
 
-    pub fn append(&mut self, value: T) {
+    pub fn append(&mut self, value: T) -> &mut Self {
         let new_node: Box<LinkedListNode<T>> = LinkedListNode::new(value, None);
 
         if self.head.is_none() {
             self.head = Some(new_node.clone());
+            self.tail = Some(new_node);
+
+            return self;
         }
 
+        self.tail.as_mut().unwrap().next = Some(new_node.clone());
         self.tail = Some(new_node);
+
+        return self;
     }
 
     pub fn insert(&mut self, value: T, index: usize) {
@@ -184,10 +192,12 @@ where
     {
         let mut nodes: Vec<T> = Vec::new();
         let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+
         while let Some(node) = current {
             nodes.push(node.value.clone());
             current = node.next.clone();
         }
+
         nodes
     }
 
