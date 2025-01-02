@@ -1,4 +1,8 @@
-use std::ptr;
+use std::{
+    cell::{Ref, RefCell},
+    ptr,
+    rc::Rc,
+};
 
 use crate::utils::comparator::Comparator;
 use linked_list_node::{Link, LinkedListNode};
@@ -28,7 +32,7 @@ where
     }
 
     pub fn prepend(&mut self, value: T) -> &mut Self {
-        let new_node: Box<LinkedListNode<T>> = LinkedListNode::new(value, self.head.take());
+        let new_node: Rc<RefCell<LinkedListNode<T>>> = LinkedListNode::new(value, self.head.take());
 
         self.head = Some(new_node.clone());
 
@@ -40,7 +44,7 @@ where
     }
 
     pub fn append(&mut self, value: T) -> &mut Self {
-        let new_node: Box<LinkedListNode<T>> = LinkedListNode::new(value, None);
+        let new_node: Rc<RefCell<LinkedListNode<T>>> = LinkedListNode::new(value, None);
 
         if self.head.is_none() {
             self.head = Some(new_node.clone());
@@ -49,8 +53,12 @@ where
             return self;
         }
 
-        self.tail.as_mut().unwrap().next = Some(new_node.clone());
-        self.tail = Some(new_node);
+        if let Some(tail) = self.tail.take() {
+            if let Ok(tail) = Rc::try_unwrap(tail) {
+                tail.borrow_mut().next = Some(new_node.clone());
+                self.tail = Some(new_node);
+            }
+        }
 
         return self;
     }
@@ -60,58 +68,66 @@ where
             self.prepend(value);
         } else {
             let mut count: usize = 0;
-            let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+            let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
 
-            while let Some(mut node) = current {
-                if count == index - 1 {
-                    let new_node: Box<LinkedListNode<T>> =
-                        LinkedListNode::new(value, node.next.take());
+            while let Some(ref node) = current {
+                if let Ok(node) = Rc::<RefCell<LinkedListNode<T>>>::try_unwrap(node.clone()) {
+                    if count == index - 1 {
+                        let new_node: Rc<RefCell<LinkedListNode<T>>> =
+                            LinkedListNode::new(value, node.borrow_mut().next.take());
 
-                    node.next = Some(new_node.clone());
+                        node.borrow_mut().next = Some(new_node.clone());
 
-                    if new_node.next.is_none() {
-                        self.tail = Some(new_node);
+                        if new_node.borrow().next.is_none() {
+                            self.tail = Some(new_node);
+                        }
+
+                        break;
                     }
 
-                    break;
+                    current = node.borrow_mut().next.clone();
+                    count += 1;
                 }
-
-                current = node.next.clone();
-                count += 1;
             }
         }
     }
 
-    pub fn delete(&mut self, value: T) -> Option<Box<LinkedListNode<T>>> {
-        let mut deleted_node: Option<Box<LinkedListNode<T>>> = None;
+    pub fn delete(&mut self, value: T) -> Option<Rc<RefCell<LinkedListNode<T>>>> {
+        let mut deleted_node: Option<Rc<RefCell<LinkedListNode<T>>>> = None;
 
-        while let Some(mut head) = self.head.clone() {
-            if self.compare.equal(&head.value, &value) {
-                deleted_node = self.head.clone();
-                self.head = head.next.take();
-            } else {
-                break;
+        while let Some(head) = self.head.clone() {
+            if let Ok(node) = Rc::<RefCell<LinkedListNode<T>>>::try_unwrap(head.clone()) {
+                if self.compare.equal(&node.borrow().value, &value) {
+                    deleted_node = self.head.clone();
+                    self.head = node.borrow_mut().next.take();
+                } else {
+                    break;
+                }
             }
         }
 
-        let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+        let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
 
         while let Some(ref mut node) = current {
-            if let Some(mut next) = node.next.clone() {
-                if self.compare.equal(&next.value, &value) {
-                    node.next = next.next.take();
-                    deleted_node = Some(next);
+            if let Ok(node) = Rc::<RefCell<LinkedListNode<T>>>::try_unwrap(node.clone()) {
+                if let Some(next) = node.borrow().next.clone() {
+                    if self.compare.equal(&next.borrow().value, &value) {
+                        node.borrow_mut().next = next.borrow_mut().next.take();
+                        deleted_node = Some(next);
+                    } else {
+                        current = Some(next);
+                    }
                 } else {
-                    current = Some(next);
+                    break;
                 }
-            } else {
-                break;
             }
         }
 
         if let Some(tail) = self.tail.clone() {
-            if self.compare.equal(&tail.value, &value) {
-                self.tail = current;
+            if let Ok(tail) = Rc::<RefCell<LinkedListNode<T>>>::try_unwrap(tail.clone()) {
+                if self.compare.equal(&tail.borrow().value, &value) {
+                    self.tail = current;
+                }
             }
         }
 
@@ -122,54 +138,57 @@ where
         &self,
         value: Option<&T>,
         callback: Option<&dyn Fn(&T) -> bool>,
-    ) -> Option<Box<LinkedListNode<T>>> {
-        let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+    ) -> Option<LinkedListNode<T>> {
+        let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
 
-        while let Some(node) = current {
-            if let Some(cb) = callback {
-                if cb(&node.value) {
-                    return Some(node);
+        while let Some(ref node) = current {
+            if let Ok(node) = Rc::<RefCell<LinkedListNode<T>>>::try_unwrap(node.clone()) {
+                if let Some(cb) = callback {
+                    if cb(&node.borrow().value) {
+                        return Some(node.borrow().clone());
+                    }
+                } else if let Some(v) = value {
+                    if self.compare.equal(&node.borrow().value, v) {
+                        return Some(node.borrow().clone());
+                    }
                 }
-            } else if let Some(v) = value {
-                if self.compare.equal(&node.value, v) {
-                    return Some(node);
-                }
+
+                current = node.borrow().next.clone();
             }
-
-            current = node.next.clone();
         }
 
         None
     }
 
-    pub fn delete_tail(&mut self) -> Option<Box<LinkedListNode<T>>> {
+    pub fn delete_tail(&mut self) -> Option<Rc<RefCell<LinkedListNode<T>>>> {
         if self.head.is_none() {
             return None;
         }
 
-        let deleted_tail: Option<Box<LinkedListNode<T>>> = self.tail.clone();
+        let deleted_tail: Option<Rc<RefCell<LinkedListNode<T>>>> = self.tail.clone();
 
         if ptr::eq(self.head.as_ref().unwrap(), self.tail.as_ref().unwrap()) {
             self.head = None;
             self.tail = None;
         } else {
-            let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
-            while let Some(mut node) = current {
-                if let Some(next) = node.next.clone() {
+            let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
+
+            while let Some(node) = current {
+                if let Some(next) = node.borrow().next.clone() {
                     if ptr::eq(&next, self.tail.as_ref().unwrap()) {
-                        node.next = None;
-                        self.tail = Some(node);
+                        node.borrow_mut().next = None;
+                        self.tail = Some(node.clone());
                         break;
                     }
                 }
-                current = node.next.clone();
+                current = node.borrow().next.clone();
             }
         }
 
         deleted_tail
     }
 
-    pub fn delete_head(&mut self) -> Option<Box<LinkedListNode<T>>> {
+    pub fn delete_head(&mut self) {
         if let Some(mut head) = self.head.clone() {
             self.head = head.next.take();
             if self.head.is_none() {
@@ -191,7 +210,7 @@ where
         T: Clone,
     {
         let mut nodes: Vec<T> = Vec::new();
-        let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+        let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
 
         while let Some(node) = current {
             nodes.push(node.value.clone());
@@ -202,11 +221,12 @@ where
     }
 
     pub fn reverse(&mut self) {
-        let mut prev: Option<Box<LinkedListNode<T>>> = None;
-        let mut current: Option<Box<LinkedListNode<T>>> = self.head.clone();
+        let mut prev: Option<Rc<RefCell<LinkedListNode<T>>>> = None;
+        let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
         self.tail = self.head.clone();
         while let Some(mut node) = current {
-            let next: Option<Box<LinkedListNode<T>>> = node.next.take();
+            let next: Option<Rc<RefCell<LinkedListNode<T>>>> = node.next.take();
+
             node.next = prev;
             prev = Some(node.clone());
             current = next;

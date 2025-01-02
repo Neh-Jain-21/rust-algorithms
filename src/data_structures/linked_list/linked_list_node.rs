@@ -1,4 +1,6 @@
-pub type Link<T> = Option<Box<LinkedListNode<T>>>;
+use std::{cell::RefCell, rc::Rc};
+
+pub type Link<T> = Option<Rc<RefCell<LinkedListNode<T>>>>;
 
 #[derive(Clone, Debug)]
 pub struct LinkedListNode<T>
@@ -13,7 +15,7 @@ impl<T> LinkedListNode<T>
 where
     T: Clone,
 {
-    pub fn new(value: T, next: Link<T>) -> Box<Self> {
-        Box::new(LinkedListNode { value, next })
+    pub fn new(value: T, next: Link<T>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(LinkedListNode { value, next }))
     }
 }
