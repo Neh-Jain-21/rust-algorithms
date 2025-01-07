@@ -1,8 +1,4 @@
-use std::{
-    cell::{Ref, RefCell},
-    ptr,
-    rc::Rc,
-};
+use std::{cell::RefCell, ptr, rc::Rc};
 
 use crate::utils::comparator::Comparator;
 use linked_list_node::{Link, LinkedListNode};
@@ -53,12 +49,10 @@ where
             return self;
         }
 
-        if let Some(tail) = self.tail.take() {
-            if let Ok(tail) = Rc::try_unwrap(tail) {
-                tail.borrow_mut().next = Some(new_node.clone());
-                self.tail = Some(new_node);
-            }
+        if let Some(tail) = self.tail.clone() {
+            tail.borrow_mut().next = Some(new_node.clone());
         }
+        self.tail = Some(new_node);
 
         return self;
     }
@@ -188,14 +182,15 @@ where
         deleted_tail
     }
 
-    pub fn delete_head(&mut self) {
-        if let Some(mut head) = self.head.clone() {
-            self.head = head.next.take();
+    pub fn delete_head(&mut self) -> Option<Rc<RefCell<LinkedListNode<T>>>> {
+        if let Some(head) = self.head.clone() {
+            self.head = head.borrow_mut().next.take();
             if self.head.is_none() {
                 self.tail = None;
             }
             return Some(head);
         }
+
         None
     }
 
@@ -213,8 +208,8 @@ where
         let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
 
         while let Some(node) = current {
-            nodes.push(node.value.clone());
-            current = node.next.clone();
+            nodes.push(node.borrow().clone().value);
+            current = node.borrow().next.clone();
         }
 
         nodes
@@ -223,14 +218,19 @@ where
     pub fn reverse(&mut self) {
         let mut prev: Option<Rc<RefCell<LinkedListNode<T>>>> = None;
         let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
-        self.tail = self.head.clone();
-        while let Some(mut node) = current {
-            let next: Option<Rc<RefCell<LinkedListNode<T>>>> = node.next.take();
 
-            node.next = prev;
+        self.tail = self.head.clone();
+
+        while let Some(node) = current {
+            let next: Option<Rc<RefCell<LinkedListNode<T>>>> = node.borrow_mut().next.take();
+
+            node.borrow_mut().next = prev;
+
             prev = Some(node.clone());
+
             current = next;
         }
+
         self.head = prev;
     }
 }
