@@ -8,7 +8,7 @@ mod linked_list_node;
 
 pub struct LinkedList<T>
 where
-    T: PartialEq + PartialOrd + 'static + Clone,
+    T: PartialEq + PartialOrd + 'static + Clone + std::fmt::Debug,
 {
     head: Link<T>,
     tail: Link<T>,
@@ -17,7 +17,7 @@ where
 
 impl<T> LinkedList<T>
 where
-    T: PartialEq + PartialOrd + Clone,
+    T: PartialEq + PartialOrd + Clone + std::fmt::Debug,
 {
     pub fn new(compare_function: Option<Box<dyn Fn(&T, &T) -> i32>>) -> Self {
         LinkedList {
@@ -111,8 +111,6 @@ where
                     } else {
                         current = Some(next);
                     }
-                } else {
-                    break;
                 }
             }
         }
@@ -215,6 +213,18 @@ where
         nodes
     }
 
+    pub fn to_string(&self) -> String {
+        let mut nodes: Vec<String> = Vec::new();
+        let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
+
+        while let Some(node) = current {
+            nodes.push(format!("{:?}", node.borrow().value));
+            current = node.borrow().next.clone();
+        }
+
+        nodes.join(",")
+    }
+
     pub fn reverse(&mut self) {
         let mut prev: Option<Rc<RefCell<LinkedListNode<T>>>> = None;
         let mut current: Option<Rc<RefCell<LinkedListNode<T>>>> = self.head.clone();
@@ -240,29 +250,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_linked_list() {
+    fn create_empty_linked_list() {
+        let list: LinkedList<i32> = LinkedList::new(None);
+        assert_eq!(list.to_string(), "");
+    }
+
+    #[test]
+    fn should_append_node_to_linked_list() {
         let mut list: LinkedList<i32> = LinkedList::new(None);
+
+        assert_eq!(list.head.is_none(), true);
+        assert_eq!(list.tail.is_none(), true);
 
         list.append(1);
         list.append(2);
-        list.append(3);
 
-        assert_eq!(list.to_vec(), vec![1, 2, 3]);
+        assert_eq!(list.to_string(), "1,2");
+        assert_eq!(list.tail.unwrap().borrow().next.is_none(), true);
+    }
 
-        // list.prepend(0);
-        // assert_eq!(list.to_vec(), vec![0, 1, 2, 3]);
+    #[test]
+    fn should_prepend_node_to_linked_list() {
+        let mut list: LinkedList<i32> = LinkedList::new(None);
 
-        // list.delete(2);
-        // assert_eq!(list.to_vec(), vec![0, 1, 3]);
+        list.prepend(2);
 
-        // list.reverse();
-        // assert_eq!(list.to_vec(), vec![3, 1, 0]);
+        assert_eq!(list.head.as_ref().unwrap().borrow().value, 2);
+        assert_eq!(list.tail.as_ref().unwrap().borrow().value, 2);
 
-        // list.insert(2, 1);
-        // assert_eq!(list.to_vec(), vec![3, 2, 1, 0]);
+        list.append(1);
+        list.prepend(3);
 
-        // assert_eq!(list.delete_head().unwrap().value, 3);
-        // assert_eq!(list.delete_tail().unwrap().value, 0);
-        // assert_eq!(list.to_vec(), vec![2, 1]);
+        assert_eq!(list.to_string(), "3,2,1");
+    }
+
+    #[test]
+    fn should_insert_node_to_linked_list() {
+        let mut list: LinkedList<i32> = LinkedList::new(None);
+
+        list.insert(4, 3);
+
+        assert_eq!(list.head.as_ref().unwrap().borrow().value, 4);
+        assert_eq!(list.tail.as_ref().unwrap().borrow().value, 4);
+
+        list.insert(3, 2);
+        list.insert(2, 1);
+        list.insert(10, 9);
+
+        println!("{}", list.to_string());
+
+        assert_eq!(list.to_string(), "2,3,4,10");
     }
 }
